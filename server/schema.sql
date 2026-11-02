@@ -142,6 +142,25 @@ CREATE TABLE IF NOT EXISTS messages (
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS interviews (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  submission_id INTEGER NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
+  clinician_id INTEGER REFERENCES clinicians(id) ON DELETE SET NULL,
+  job_id INTEGER REFERENCES jobs(id) ON DELETE SET NULL,
+  scheduled_at TEXT NOT NULL,
+  duration_minutes INTEGER DEFAULT 30,
+  mode TEXT CHECK(mode IN ('phone', 'video', 'onsite')) DEFAULT 'video',
+  interviewer TEXT,
+  notes TEXT,
+  outcome TEXT CHECK(outcome IN ('scheduled', 'completed', 'no_show', 'cancelled')) DEFAULT 'scheduled',
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_interviews_submission ON interviews(submission_id);
+CREATE INDEX IF NOT EXISTS idx_interviews_scheduled ON interviews(scheduled_at);
+
 CREATE TABLE IF NOT EXISTS audit_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   actor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,

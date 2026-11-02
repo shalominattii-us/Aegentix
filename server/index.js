@@ -15,6 +15,7 @@ import placementsRoutes from './routes/placements.js';
 import complianceRoutes from './routes/compliance.js';
 import messagesRoutes from './routes/messages.js';
 import exportsRoutes from './routes/exports.js';
+import interviewsRoutes from './routes/interviews.js';
 
 const app = express();
 
@@ -33,6 +34,7 @@ app.use('/api/v1/placements', placementsRoutes);
 app.use('/api/v1/compliance', complianceRoutes);
 app.use('/api/v1/messages', messagesRoutes);
 app.use('/api/v1/exports', exportsRoutes);
+app.use('/api/v1/interviews', interviewsRoutes);
 
 // Serve static frontend from client/dist if present
 const __filename = fileURLToPath(import.meta.url);

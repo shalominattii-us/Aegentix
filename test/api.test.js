@@ -385,3 +385,88 @@ test('16. Exports: placements CSV + auth guard', async () => {
   const guard = await fetch(`${baseUrl}/api/v1/exports/placements.csv`);
   assert.strictEqual(guard.status, 401);
 });
+
+test('17. Interviews: schedule advances submission to interview stage', async () => {
+  const subsRes = await fetch(`${baseUrl}/api/v1/submissions?limit=100`, {
+    headers: { Authorization: `Bearer ${authToken}` }
+  });
+  const subs = (await subsRes.json()).items;
+  const candidate = subs.find((s) => ['submitted', 'screened', 'client_review'].includes(s.stage));
+  assert.ok(candidate, 'Expected a submission below interview stage');
+
+  const when = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+  const res = await fetch(`${baseUrl}/api/v1/interviews`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      submission_id: candidate.id,
+      scheduled_at: when,
+      duration_minutes: 45,
+      mode: 'video',
+      interviewer: 'Mercy Health Hiring Manager',
+    })
+  });
+  assert.strictEqual(res.status, 201);
+  const created = await res.json();
+  assert.strictEqual(created.outcome, 'scheduled');
+  assert.strictEqual(created.duration_minutes, 45);
+  assert.strictEqual(created.submission_id, candidate.id);
+  assert.ok(created.clinician_name && created.job_title, 'Expected joined clinician and job names');
+  globalThis.__interviewId = created.id;
+
+  const subRes = await fetch(`${baseUrl}/api/v1/submissions?clinician_id=${candidate.clinician_id}`, {
+    headers: { Authorization: `Bearer ${authToken}` }
+  });
+  const updatedSub = (await subRes.json()).items.find((s) => s.id === candidate.id);
+  assert.strictEqual(updatedSub.stage, 'interview');
+});
+
+test('18. Interviews: list by job, upcoming filter and outcome update', async () => {
+  const allRes = await fetch(`${baseUrl}/api/v1/interviews?upcoming=true`, {
+    headers: { Authorization: `Bearer ${authToken}` }
+  });
+  assert.strictEqual(allRes.status, 200);
+  const upcoming = await allRes.json();
+  assert.ok(upcoming.items.some((i) => i.id === globalThis.__interviewId), 'Scheduled interview should be upcoming');
+
+  const patchRes = await fetch(`${baseUrl}/api/v1/interviews/${globalThis.__interviewId}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ outcome: 'completed', notes: 'Strong clinical answers, moving to offer.' })
+  });
+  assert.strictEqual(patchRes.status, 200);
+  const patched = await patchRes.json();
+  assert.strictEqual(patched.outcome, 'completed');
+  assert.match(patched.notes, /moving to offer/);
+
+  const doneUpcoming = await (await fetch(`${baseUrl}/api/v1/interviews?upcoming=true`, {
+    headers: { Authorization: `Bearer ${authToken}` }
+  })).json();
+  assert.ok(!doneUpcoming.items.some((i) => i.id === globalThis.__interviewId), 'Completed interview leaves upcoming list');
+});
+
+test('19. Interviews: validation and auth guards', async () => {
+  const noBody = await fetch(`${baseUrl}/api/v1/interviews`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ submission_id: 1 })
+  });
+  assert.strictEqual(noBody.status, 400);
+
+  const badMode = await fetch(`${baseUrl}/api/v1/interviews`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ submission_id: 1, scheduled_at: new Date().toISOString(), mode: 'telepathy' })
+  });
+  assert.strictEqual(badMode.status, 400);
+
+  const badId = await fetch(`${baseUrl}/api/v1/interviews/999999`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ outcome: 'completed' })
+  });
+  assert.strictEqual(badId.status, 404);
+
+  const guard = await fetch(`${baseUrl}/api/v1/interviews`);
+  assert.strictEqual(guard.status, 401);
+});

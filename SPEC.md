@@ -59,6 +59,8 @@ aegentix-prosurance/
 
 **placements** — id, submission_id, clinician_id, job_id, employer_id, recruiter_id, start_date, end_date, hours REAL, pay_rate REAL, bill_rate REAL, fee_amount REAL, fee_status TEXT (`pending|invoiced|paid`), status TEXT (`active|completed|cancelled`), created_at
 
+**interviews** — id, submission_id, clinician_id, job_id, scheduled_at TEXT (ISO datetime), duration_minutes INTEGER, mode TEXT (`phone|video|onsite`), interviewer, notes, outcome TEXT (`scheduled|completed|no_show|cancelled`), created_by, created_at, updated_at
+
 **messages** — id, thread_key, sender_id, recipient_id, body, read_at, created_at
 
 **audit_log** — id, actor_id, actor_email, action, entity, entity_id, summary, meta TEXT (JSON), ip, created_at
@@ -107,6 +109,16 @@ Placements
 Compliance
 - `GET /api/v1/compliance/expiring?days=30` → `{items:[credential + {clinician_name, days_left}]}`
 - `GET /api/v1/compliance/audit?limit=50` → `{items}`
+
+Interviews
+- `GET /api/v1/interviews?job_id&clinician_id&submission_id&outcome&upcoming=true&limit` → `{items:[interview + {clinician_name, job_title, employer_name, submission_stage}], total}`
+- `POST /api/v1/interviews` `{submission_id, scheduled_at, duration_minutes?, mode?, interviewer?, notes?}` → 201 interview; advances a pre-interview submission to `interview`
+- `PATCH /api/v1/interviews/:id` `{outcome?, scheduled_at?, mode?, duration_minutes?, interviewer?, notes?}` → updated interview
+
+Exports (audited, `text/csv` attachments)
+- `GET /api/v1/exports/candidates.csv?query&discipline&state&status`
+- `GET /api/v1/exports/compliance.csv?days`
+- `GET /api/v1/exports/placements.csv`
 
 Messages
 - `GET /api/v1/messages/thread/:threadKey` → `{items}` ; `POST /api/v1/messages` `{thread_key, recipient_id?, body}` → created

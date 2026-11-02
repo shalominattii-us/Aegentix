@@ -40,17 +40,31 @@ export default function JobDetailPage() {
   const [error, setError] = useState('');
   const [submitMsg, setSubmitMsg] = useState('');
   const [submittingClinicianId, setSubmittingClinicianId] = useState(null);
+  const [interviews, setInterviews] = useState([]);
+  const [interviewSub, setInterviewSub] = useState(null);
+  const [interviewForm, setInterviewForm] = useState({
+    scheduled_at: '',
+    duration_minutes: 45,
+    mode: 'video',
+    interviewer: '',
+    notes: '',
+  });
+  const [interviewSaving, setInterviewSaving] = useState(false);
+  const [interviewError, setInterviewError] = useState('');
+  const [interviewMsg, setInterviewMsg] = useState('');
 
   const loadJobDetails = async () => {
     setLoading(true);
     setError('');
     try {
-      const [res, matchesRes] = await Promise.all([
+      const [res, matchesRes, interviewRes] = await Promise.all([
         api.get(`/jobs/${id}`),
         api.get(`/jobs/${id}/matches`, { limit: 10 }),
+        api.get('/interviews', { job_id: id, limit: 50 }),
       ]);
       setJobData(res);
       setMatches(matchesRes.matches || []);
+      setInterviews(interviewRes.items || []);
     } catch (err) {
       setError(err.message || 'Failed to load job requisition details.');
     } finally {
@@ -61,6 +75,60 @@ export default function JobDetailPage() {
   useEffect(() => {
     loadJobDetails();
   }, [id]);
+
+  const defaultSlot = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 2);
+    d.setHours(10, 0, 0, 0);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  const openInterviewModal = (sub) => {
+    setInterviewError('');
+    setInterviewMsg('');
+    setInterviewSub(sub);
+    setInterviewForm({
+      scheduled_at: defaultSlot(),
+      duration_minutes: 45,
+      mode: 'video',
+      interviewer: employer?.contact_name || '',
+      notes: '',
+    });
+  };
+
+  const handleScheduleInterview = async (e) => {
+    e.preventDefault();
+    if (!interviewSub) return;
+    setInterviewSaving(true);
+    setInterviewError('');
+    try {
+      await api.post('/interviews', {
+        submission_id: interviewSub.id,
+        scheduled_at: new Date(interviewForm.scheduled_at).toISOString(),
+        duration_minutes: Number(interviewForm.duration_minutes),
+        mode: interviewForm.mode,
+        interviewer: interviewForm.interviewer || null,
+        notes: interviewForm.notes || null,
+      });
+      setInterviewSub(null);
+      setInterviewMsg('Interview scheduled and added to the pipeline.');
+      await loadJobDetails();
+    } catch (err) {
+      setInterviewError(err.message || 'Failed to schedule interview.');
+    } finally {
+      setInterviewSaving(false);
+    }
+  };
+
+  const handleInterviewOutcome = async (interviewId, outcome) => {
+    try {
+      await api.patch(`/interviews/${interviewId}`, { outcome });
+      await loadJobDetails();
+    } catch (err) {
+      setInterviewError(err.message || 'Failed to update interview.');
+    }
+  };
 
   const handleStageChange = async (submissionId, newStage) => {
     try {
@@ -354,7 +422,7 @@ export default function JobDetailPage() {
                     <th className="pb-2">Match Score</th>
                     <th className="pb-2">Current Stage</th>
                     <th className="pb-2">Submitted Date</th>
-                    <th className="pb-2 text-right">Advance Stage</th>
+                    <th className="pb-2 text-right">Stage / Interview</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#1E2A44]">
@@ -385,6 +453,93 @@ export default function JobDetailPage() {
                             <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
                           ))}
                         </select>
+                        <button
+                          onClick={() => openInterviewModal(sub)}
+                          className="ml-2 px-2 py-1 rounded border border-[#1E2A44] text-[11px] text-[#8A9AB4] hover:text-[#2DD4BF] hover:border-[#2DD4BF]/50 transition-colors"
+                        >
+                          Interview
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Interview Schedule */}
+        <div className="panel-card p-5 space-y-4">
+          <div className="flex items-center justify-between border-b border-[#1E2A44] pb-3">
+            <h2 className="text-xs font-mono font-semibold uppercase tracking-wider text-[#E6EDF7] flex items-center gap-2">
+              <Calendar className="w-3.5 h-3.5 text-[#2DD4BF]" />
+              Interview Schedule ({interviews.length})
+            </h2>
+            {interviewMsg && <span className="text-[11px] text-[#34D399] font-mono">{interviewMsg}</span>}
+          </div>
+
+          {interviewError && <div className="text-[11px] text-[#FB7185] font-mono">{interviewError}</div>}
+
+          {interviews.length === 0 ? (
+            <div className="text-xs text-[#8A9AB4] text-center py-6">
+              No interviews booked for this requisition. Use Interview on a submission to schedule one.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="text-[10px] font-mono uppercase text-[#8A9AB4] border-b border-[#1E2A44]">
+                    <th className="pb-2">Scheduled</th>
+                    <th className="pb-2">Clinician</th>
+                    <th className="pb-2">Mode</th>
+                    <th className="pb-2">Interviewer</th>
+                    <th className="pb-2">Outcome</th>
+                    <th className="pb-2 text-right">Record Result</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#1E2A44]">
+                  {interviews.map((iv) => (
+                    <tr key={iv.id} className="hover:bg-[#16233B]/50">
+                      <td className="py-2.5 font-mono text-[#E6EDF7] whitespace-nowrap">
+                        {new Date(iv.scheduled_at).toLocaleString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: 'numeric',
+                          minute: '2-digit',
+                        })}
+                        <span className="text-[10px] text-[#8A9AB4] ml-1">{iv.duration_minutes}m</span>
+                      </td>
+                      <td className="py-2.5 text-[#E6EDF7] font-semibold">{iv.clinician_name}</td>
+                      <td className="py-2.5 text-[#8A9AB4] uppercase text-[10px] font-mono">{iv.mode}</td>
+                      <td className="py-2.5 text-[#8A9AB4]">{iv.interviewer || '—'}</td>
+                      <td className="py-2.5">
+                        <StatusPill status={iv.outcome} />
+                      </td>
+                      <td className="py-2.5 text-right">
+                        {iv.outcome === 'scheduled' ? (
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => handleInterviewOutcome(iv.id, 'completed')}
+                              className="px-2 py-1 rounded border border-[#1E2A44] text-[11px] text-[#8A9AB4] hover:text-[#34D399] hover:border-[#34D399]/50"
+                            >
+                              Completed
+                            </button>
+                            <button
+                              onClick={() => handleInterviewOutcome(iv.id, 'no_show')}
+                              className="px-2 py-1 rounded border border-[#1E2A44] text-[11px] text-[#8A9AB4] hover:text-[#FB7185] hover:border-[#FB7185]/50"
+                            >
+                              No Show
+                            </button>
+                            <button
+                              onClick={() => handleInterviewOutcome(iv.id, 'cancelled')}
+                              className="px-2 py-1 rounded border border-[#1E2A44] text-[11px] text-[#8A9AB4] hover:text-[#FBBF24] hover:border-[#FBBF24]/50"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-[#8A9AB4]/60 font-mono">recorded</span>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -394,6 +549,98 @@ export default function JobDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Schedule Interview Modal */}
+      {interviewSub && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-[#111A2C] border border-[#1E2A44] rounded-xl w-full max-w-md p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-[#1E2A44] pb-3">
+              <h2 className="text-sm font-semibold text-[#E6EDF7]">
+                Schedule Interview: {interviewSub.clinician_name}
+              </h2>
+              <button onClick={() => setInterviewSub(null)} className="text-[#8A9AB4]">✕</button>
+            </div>
+
+            <form onSubmit={handleScheduleInterview} className="space-y-3 text-xs">
+              <div>
+                <label className="block text-[#8A9AB4] mb-1">Date &amp; Time</label>
+                <input
+                  type="datetime-local"
+                  required
+                  value={interviewForm.scheduled_at}
+                  onChange={(e) => setInterviewForm({ ...interviewForm, scheduled_at: e.target.value })}
+                  className="w-full bg-[#0B1220] border border-[#1E2A44] rounded p-2 text-[#E6EDF7]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[#8A9AB4] mb-1">Duration (min)</label>
+                  <select
+                    value={interviewForm.duration_minutes}
+                    onChange={(e) => setInterviewForm({ ...interviewForm, duration_minutes: e.target.value })}
+                    className="w-full bg-[#0B1220] border border-[#1E2A44] rounded p-2 text-[#E6EDF7]"
+                  >
+                    {[30, 45, 60, 90].map((d) => (
+                      <option key={d} value={d}>{d} minutes</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[#8A9AB4] mb-1">Mode</label>
+                  <select
+                    value={interviewForm.mode}
+                    onChange={(e) => setInterviewForm({ ...interviewForm, mode: e.target.value })}
+                    className="w-full bg-[#0B1220] border border-[#1E2A44] rounded p-2 text-[#E6EDF7]"
+                  >
+                    {['video', 'phone', 'onsite'].map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[#8A9AB4] mb-1">Interviewer</label>
+                <input
+                  type="text"
+                  value={interviewForm.interviewer}
+                  onChange={(e) => setInterviewForm({ ...interviewForm, interviewer: e.target.value })}
+                  placeholder="Hiring manager or panel lead"
+                  className="w-full bg-[#0B1220] border border-[#1E2A44] rounded p-2 text-[#E6EDF7]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[#8A9AB4] mb-1">Notes</label>
+                <textarea
+                  rows={3}
+                  value={interviewForm.notes}
+                  onChange={(e) => setInterviewForm({ ...interviewForm, notes: e.target.value })}
+                  className="w-full bg-[#0B1220] border border-[#1E2A44] rounded p-2 text-[#E6EDF7]"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-[#1E2A44] flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setInterviewSub(null)}
+                  className="px-3 py-1.5 border border-[#1E2A44] rounded text-[#8A9AB4]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={interviewSaving}
+                  className="px-3 py-1.5 bg-[#2DD4BF] text-[#0B1220] font-semibold rounded disabled:opacity-60"
+                >
+                  {interviewSaving ? 'Scheduling...' : 'Schedule Interview'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }

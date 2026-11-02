@@ -47,6 +47,9 @@ Demo logins (from the seed):
 - **Matching**: a deterministic 100 point score across discipline, specialty, state
   licensure (including compact IMLC/NLC), availability, rate fit, certification
   coverage and travel willingness, with human readable reasons.
+- **Interviews**: schedule phone, video or onsite interviews per submission, record
+  completed, no-show or cancelled outcomes, with the submission auto-advanced to the
+  interview stage.
 - **Pipeline**: nine stage kanban from sourced through placed, with stage advances and
   rejections recorded in the audit log.
 - **Placements**: hours, pay and bill rates, margin, and fee status, with a close-out
@@ -73,6 +76,8 @@ PATCH  /placements/:id                (fee_status, status, end_date, hours, rate
 GET    /compliance/expiring           GET    /compliance/audit
 GET    /exports/candidates.csv        GET    /exports/compliance.csv
 GET    /exports/placements.csv        (respect filters, audited downloads)
+GET    /interviews                    POST   /interviews
+PATCH  /interviews/:id
 ```
 
 The full contract, schema and matching weights are in [SPEC.md](SPEC.md).
