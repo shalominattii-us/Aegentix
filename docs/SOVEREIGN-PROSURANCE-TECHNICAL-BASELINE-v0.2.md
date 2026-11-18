@@ -17,6 +17,7 @@ Blockchain is not part of the product name or a prerequisite for participation. 
 ## 2. Canonical product and code ownership
 
 - **Canonical product experience:** existing Floot project, project ID 3b4a98de-5ce5-4d33-952c-7e6175d9ca81, to be rebranded as Sovereign Prosurance Healthcare Network.
+- **Deployment sovereignty boundary:** the current Floot project is a hosted development/preview environment backed by Floot-managed Postgres. It is not yet a self-hosted, jurisdiction-pinned, vendor-independent production deployment. Treat the current build as a prototype until source export, database portability, private storage, deployment jurisdiction, key custody, backups, and vendor-exit procedures are verified.
 - **Recruiting workflow source:** shalominattii-us/Aegentix (AEGENTIX Prosurance). Reuse its domain logic and workflow patterns; do not deploy its current backend with real provider data.
 - **Healthcare interface/source material:** shalominattii-us/CYBERCORE-ai-studio, especially SovereignHealthcareView.tsx and medical-recruiting-platform/.
 - **Earlier source material:** shalominattii-us/Aegentix-super-agent-wallet-Google-ai-studios/medical-recruiting-platform/.
